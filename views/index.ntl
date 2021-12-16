@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>#title#</title>
+    <style>
+    .tabs {
+    display: flex;
+    flex-direction: column;
+    }
+
+    .tabs__links {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 10px;
+    order: 0;
+    white-space: nowrap;
+    background-color: #fff;
+    border: 1px solid #e3f2fd;
+    box-shadow: 0 2px 4px 0 #e3f2fd;
+    }
+
+    .tabs__links>a {
+    display: inline-block;
+    text-decoration: none;
+    padding: 6px 10px;
+    text-align: center;
+    color: #1976d2;
+    }
+
+    .tabs__links>a:hover {
+    background-color: rgba(227, 242, 253, 0.3);
+    }
+
+    .tabs>#content-1:target~.tabs__links>a[href="#content-1"],
+    .tabs>#content-2:target~.tabs__links>a[href="#content-2"],
+    .tabs>#content-3:target~.tabs__links>a[href="#content-3"] {
+    background-color: #bbdefb;
+    cursor: default;
+    }
+
+    .tabs>div:not(.tabs__links) {
+    display: none;
+    order: 1;
+    }
+
+    .tabs>div:target {
+    display: block;
+    }
+    </style>
+    <script>
+        function scrap() {
+            var keyword = document.getElementById("keyword").value;
+            window.location.pathname = ('/scrap/' + keyword)
+        }
+    </script>
+</head>
+<body>
+    <div class="tabs">
+        <div id="content-1">
+            <p>#message#</p>
+            <label for="keyword">Keyword:</label>
+            <p><input type="text" id="keyword"></p>
+            <p><input type="button" value="Парсинг" onclick="scrap()"></p>
+        </div>
+        <div id="content-2">#pageData#</div>
+        <div id="content-3">#tableResults#</div>
+
+        <div class="tabs__links">
+            <a href="#content-1">Main</a>
+            <a href="#content-2">Scrap Page</a>
+            <a href="#content-3">Results</a>
+        </div>
+    </div>
+</body>
+</html>
+
+
