@@ -2,6 +2,11 @@ const express = require("express");
 const https = require('https');
 const asyncHandler = require('express-async-handler');
 const fs = require('fs');
+const axios = require('axios');
+const mysql = require('mysql');
+const Auth = require('./auth'); // custom js class in root of the project for stashing auth data
+
+let auth = new Auth();
 
 var app = express();
 const port = process.env.PORT || 8000;
@@ -12,11 +17,39 @@ var title = "Amazon Scrapper";
 var message = "Hello, here is your Amazon Scrapper!";
 var tableResults = "";
 
-app.get("/", (req, res) => {
-    res.render('index', {});
-    // res.send(text);
+const connection = mysql.createConnection(process.env.DATABASE_URL || {
+    host: auth.host,
+    user: auth.user,
+    password: auth.password,
+    database: auth.database,
+    ssl: {
+        ca: fs.readFileSync('cacert-2021-10-26.pem')
+    }
+});
+connection.connect();
+
+app.get("/", async (req, res) => {
+    console.log(">>>>Go index:");
     console.log(message);
-})
+
+    if (results.length < 1) {
+        connection.query('select * from Products', function (error, rows) {
+            if (error) throw error;
+
+            for (let row of rows) {
+                results.push({
+                    title: row.title,
+                    link: row.link
+                });
+            }
+
+            return res.render('index', {});
+        });
+    }
+    else {
+        res.render('index', {});
+    }
+});
 
 app.get("/scrap/:keyword", asyncHandler(async (req, res) => {
     console.log(">>>>Start scrap:");
@@ -27,6 +60,8 @@ app.get("/scrap/:keyword", asyncHandler(async (req, res) => {
     for (let result of results) {
         console.log(JSON.stringify(result));
     }
+
+    await loadProductsToDB();
 
     res.render('index', {});
 }));
@@ -39,7 +74,7 @@ app.engine('ntl', function (filePath, options, callback) {
     fs.readFile(filePath, function (err, content) {
         if (err) return callback(new Error(err));
         createTableResults();
-        var rendered = content.toString().replace('#title#', '' + title + '').replace('#message#', '' + message + '').replace('#tableResults#', '' + tableResults + '').replace('#pageData#', '' + pageData + '');
+        var rendered = content.toString().replace('#title#', '' + title + '').replace('#message#', '' + message + '').replace('#tableResults#', '' + tableResults + '').replace('#amascrapcontent-pageData#', '' + pageData + '');
         return callback(null, rendered);
     });
 });
@@ -49,48 +84,13 @@ app.set('view engine', 'ntl'); // register the template engine
 const scrap = async function (keyword) {
     let answer = 'none';
 
-    const options = {
-        hostname: 'www.amazon.com',
-        path: '/s/?keywords=' + keyword,
-        method: 'GET',
-        headers: {
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36',
-            'upgrade-insecure-requests': '1',
-            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9'
-        }
-    }
+    const { data } = await axios.get('https://www.amazon.com/s?k=' + keyword);
+    answer = data ? data : answer;
 
-    answer = await request(options);
-    console.log(answer.data);
+    console.log(">>>>Request data:");
+    console.log(answer);
 
-    return answer.data;
-}
-
-const request = async function (options) {
-    return new Promise((resolve, reject) => {
-        https.get(options, (resp) => {
-            let data = '';
-
-            resp.on('data', (chunk) => {
-                data += chunk;
-            });
-
-            resp.on('end', () => {
-                resolve({ resp, data });
-            });
-
-        }).on("error", (err) => {
-            console.log("Error: " + err.message);
-        })
-    });
-}
-
-const parseSingle = function (source, rgx) {
-    try {
-        return source.match(rgx)[1];
-    } catch (e) {
-        return '';
-    }
+    return answer;
 }
 
 const getResults = function (data) {
@@ -177,11 +177,28 @@ const createTableResults = function () {
         + '\r</tr>\n';
     for (let i in results) {
         tableResults += '\r<tr>\n'
-            + `\r\r<th>${i + 1}</th>\n`
+            + `\r\r<th>${parseInt(i) + 1}</th>\n`
             + `\r\r<th>${results[i].title}</th>\n`
             + `\r\r<th>${results[i].link}</th>\n`
             + '\r</tr>\n';
     }
     tableResults += '</table>';
     console.log('>>>>Table Results:\n' + tableResults);
+}
+
+const parseSingle = function (source, rgx) {
+    try {
+        return source.match(rgx)[1];
+    } catch (e) {
+        return '';
+    }
+}
+
+const loadProductsToDB = async function () {
+    for (let product of results) {
+        connection.query(`insert into Products (title, link) values ('${product.title}', '${parseSingle(product.link, /(.+?)\?/)}')`, function (error, result) {
+            if (error) throw error;
+            console.log("1 record inserted, ID: " + result.insertId);
+        });
+    }
 }
